@@ -34,6 +34,7 @@ import java.util.concurrent.ExecutionException;
 
 /**
  *
+ * 封装的根redis网络通信的类
  * @author Nikita Koksharov
  *
  */

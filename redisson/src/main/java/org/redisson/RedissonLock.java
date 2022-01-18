@@ -42,6 +42,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>
  * Implements a <b>non-fair</b> locking so doesn't guarantees an acquire order.
  *
+ * redis watchlog 看门狗
  * @author Nikita Koksharov
  *
  */
@@ -56,6 +57,7 @@ public class RedissonLock extends RedissonBaseLock {
     public RedissonLock(CommandAsyncExecutor commandExecutor, String name) {
         super(commandExecutor, name);
         this.commandExecutor = commandExecutor;
+        //watchdog机制
         this.internalLockLeaseTime = commandExecutor.getConnectionManager().getCfg().getLockWatchdogTimeout();
         this.pubSub = commandExecutor.getConnectionManager().getSubscribeService().getLockPubSub();
     }
@@ -194,19 +196,31 @@ public class RedissonLock extends RedissonBaseLock {
         return get(tryLockAsync());
     }
 
+    /**
+     * 执行加锁逻辑
+     * @param waitTime 如果加锁失败的 继续尝试加锁的等待时间
+     * @param leaseTime 如果获取到锁的任务，执行时间太长，自动释放锁的过期时间,避免永久性死锁发生
+     * @param unit
+     * @param threadId 线程ID
+     * @param command
+     * @param <T>
+     * @return
+     */
     <T> RFuture<T> tryLockInnerAsync(long waitTime, long leaseTime, TimeUnit unit, long threadId, RedisStrictCommand<T> command) {
         return evalWriteAsync(getRawName(), LongCodec.INSTANCE, command,
-                "if (redis.call('exists', KEYS[1]) == 0) then " +
+                //KEYS[1] anyLock ;ARGV[1] = 30000;
+                // ARGV[2] = 92739FJSD232SLDFSD234:1 ,ARGV[2] 是由实例ID+线程ID组成(负责加锁的线程)
+                "if (redis.call('exists', KEYS[1]) == 0) then " + //如果不存在 KEYS[1]为传入的name,如anyLock,==0说明不存在
+                        "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
+                        "redis.call('pexpire', KEYS[1], ARGV[1]); " + //KEYS[1] = aryLock,ARGV[1] = leaseTime,
+                        "return nil; " +
+                        "end; " +
+                        "if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then " + //如果判断KEYS[1] 是否存在
                         "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
                         "redis.call('pexpire', KEYS[1], ARGV[1]); " +
                         "return nil; " +
                         "end; " +
-                        "if (redis.call('hexists', KEYS[1], ARGV[2]) == 1) then " +
-                        "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
-                        "redis.call('pexpire', KEYS[1], ARGV[1]); " +
-                        "return nil; " +
-                        "end; " +
-                        "return redis.call('pttl', KEYS[1]);",
+                        "return redis.call('pttl', KEYS[1]);",//返回key的还有多久存活有效期
                 Collections.singletonList(getRawName()), unit.toMillis(leaseTime), getLockName(threadId));
     }
 

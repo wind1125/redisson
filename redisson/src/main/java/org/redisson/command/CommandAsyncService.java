@@ -325,7 +325,13 @@ public class CommandAsyncService implements CommandAsyncExecutor {
         return new RedisException("Unexpected exception while processing command", e.getCause());
     }
 
+    /**
+     * 猜测这个NodeSource是三个master其中一个
+     * @param key
+     * @return
+     */
     private NodeSource getNodeSource(String key) {
+        //计算槽点 ，无论多少个集群都是固定的槽点数量，默认为16384个
         int slot = connectionManager.calcSlot(key);
         return new NodeSource(slot);
     }
@@ -386,7 +392,9 @@ public class CommandAsyncService implements CommandAsyncExecutor {
 
     @Override
     public <T, R> RFuture<R> evalWriteAsync(String key, Codec codec, RedisCommand<T> evalCommandType, String script, List<Object> keys, Object... params) {
+        //根据key值获取到某个服务实例对象
         NodeSource source = getNodeSource(key);
+        //异步执行
         return evalAsync(source, false, codec, evalCommandType, script, keys, false, params);
     }
 
@@ -482,7 +490,21 @@ public class CommandAsyncService implements CommandAsyncExecutor {
         }
         return result.toArray();
     }
-    
+
+    /**
+     *
+     * @param nodeSource
+     * @param readOnlyMode
+     * @param codec
+     * @param evalCommandType
+     * @param script 执行的lua脚本
+     * @param keys key 对应脚本中的KEY[1]
+     * @param noRetry
+     * @param params 参数 如30000 等，对应脚本中ARGS[1]
+     * @param <T>
+     * @param <R>
+     * @return
+     */
     private <T, R> RFuture<R> evalAsync(NodeSource nodeSource, boolean readOnlyMode, Codec codec, RedisCommand<T> evalCommandType,
                                         String script, List<Object> keys, boolean noRetry, Object... params) {
         if (isEvalCacheActive() && evalCommandType.getName().equals("EVAL")) {

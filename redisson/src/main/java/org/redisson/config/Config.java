@@ -68,6 +68,9 @@ public class Config {
 
     private EventLoopGroup eventLoopGroup;
 
+    /**
+     * 默认的锁监控超时时间，超时自动释放
+     */
     private long lockWatchdogTimeout = 30 * 1000;
 
     private long reliableTopicWatchdogTimeout = TimeUnit.MINUTES.toMillis(10);

@@ -19,7 +19,8 @@ import org.redisson.client.RedisClient;
 import org.redisson.misc.RedisURI;
 
 /**
- * 
+ *
+ * 代理一个redis服务实例
  * @author Nikita Koksharov
  *
  */
@@ -27,6 +28,9 @@ public class NodeSource {
 
     public enum Redirect {MOVED, ASK}
 
+    /**
+     * TODO:槽点，这里为什么只有一个值，不应该是个范围吗？
+     */
     private Integer slot;
     private RedisURI addr;
     private RedisClient redisClient;
